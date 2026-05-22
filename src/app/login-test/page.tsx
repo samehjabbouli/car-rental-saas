@@ -1,3 +1,4 @@
+// Login Test Page v2 - Updated with cache headers fix
 'use client';
 
 import { useState } from 'react';
