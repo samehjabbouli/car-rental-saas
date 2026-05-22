@@ -31,11 +31,19 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (data.access_token) {
+        // Store in localStorage for client-side checks
         localStorage.setItem('sb_access_token', data.access_token);
-        localStorage.setItem('sb_refresh_token', data.refresh_token);
+        localStorage.setItem('sb_refresh_token', data.refresh_token || '');
         localStorage.setItem('sb_user_id', data.user.id);
+        
+        // Store in cookies for server-side auth
+        const expires = new Date();
+        expires.setDate(expires.getDate() + 7);
+        document.cookie = `sb_access_token=${data.access_token}; path=/; expires=${expires.toUTCString()}; SameSite=Lax`;
+        document.cookie = `sb_refresh_token=${data.refresh_token || ''}; path=/; expires=${expires.toUTCString()}; SameSite=Lax`;
+        
         setMessage('✓ تم تسجيل الدخول بنجاح! جاري التحويل...');
-        setTimeout(() => { window.location.href = '/company'; }, 500);
+        setTimeout(() => { window.location.href = '/fleet'; }, 500);
       } else {
         setMessage('❌ ' + (data.error_description || 'خطأ في تسجيل الدخول'));
         setLoading(false);
