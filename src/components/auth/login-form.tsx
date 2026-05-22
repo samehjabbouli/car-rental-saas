@@ -1,10 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function LoginForm() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -26,27 +24,18 @@ export default function LoginForm() {
         body: new URLSearchParams({ email, password }),
       });
 
-      if (response.redirected) {
-        window.location.href = response.url;
-        return;
-      }
-
       const data = await response.json();
-      
+
       if (!response.ok) {
         setError(data.error || 'حدث خطأ أثناء تسجيل الدخول');
+        setLoading(false);
         return;
       }
       
-      // Success - redirect to the specified URL
-      if (data.redirect) {
-        router.push(data.redirect);
-      } else {
-        router.push('/company');
-      }
+      // Success - redirect using window.location
+      window.location.href = data.redirect || '/company';
     } catch (err) {
       setError('حدث خطأ في الاتصال بالخادم');
-    } finally {
       setLoading(false);
     }
   }
@@ -69,6 +58,7 @@ export default function LoginForm() {
           type="email"
           name="email"
           required
+          defaultValue="admin@carrental.com"
           className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all text-slate-900"
           placeholder="example@domain.com"
         />
@@ -81,6 +71,7 @@ export default function LoginForm() {
           type="password"
           name="password"
           required
+          defaultValue="admin123"
           className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all text-slate-900"
           placeholder="أدخل كلمة المرور"
         />
