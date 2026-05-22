@@ -1,3 +1,4 @@
+// Company Dashboard - fix-login-pages branch
 'use client';
 
 import { useEffect } from 'react';
