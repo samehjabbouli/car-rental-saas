@@ -1,26 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    // Check if already logged in
-    fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'email=admin@carrental.com&password=admin123&check=true'
-    }).then(r => r.json()).then(d => {
-      if (d.loggedIn && d.redirect) {
-        window.location.href = d.redirect;
-      }
-    }).catch(() => {});
-  }, []);
-
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    e.stopPropagation();
     setLoading(true);
     setError('');
 
