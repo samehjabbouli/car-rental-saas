@@ -31,9 +31,18 @@ export default function LoginForm() {
         return;
       }
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        const data = await response.json();
         setError(data.error || 'حدث خطأ أثناء تسجيل الدخول');
+        return;
+      }
+      
+      // Success - redirect to the specified URL
+      if (data.redirect) {
+        router.push(data.redirect);
+      } else {
+        router.push('/company');
       }
     } catch (err) {
       setError('حدث خطأ في الاتصال بالخادم');
