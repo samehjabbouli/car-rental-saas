@@ -246,7 +246,8 @@ export default function Dashboard() {
       active: 'نشط', draft: 'مسودة', expired: 'منتهي', paid: 'مدفوعة', overdue: 'متأخر'
     }
     const c = colors[status] || { bg: 'bg-gray-100', text: 'text-gray-700' }
-    return `<span class="${c.bg} ${c.text} px-2 py-1 rounded-full text-xs">${labels[status] || status}</span>`
+    const label = labels[status] || status || '-'
+    return { bg: c.bg, text: c.text, label }
   }
 
   const stats = {
@@ -405,7 +406,10 @@ export default function Dashboard() {
                         <td className="py-3 px-4">{v.license_plate}</td>
                         <td className="py-3 px-4">{formatCurrency(v.daily_rate)}</td>
                         <td className="py-3 px-4">
-                          <span dangerouslySetInnerHTML={{ __html: getStatusBadge(v.status, 'vehicle') }} />
+                          {(() => {
+                            const badge = getStatusBadge(v.status, 'vehicle')
+                            return <span className={`${badge.bg} ${badge.text} px-2 py-1 rounded-full text-xs`}>{badge.label}</span>
+                          })()}
                         </td>
                         <td className="py-3 px-4">
                           <button onClick={() => openEditModal('vehicle', v)} className="text-blue-600 hover:bg-blue-50 p-2 rounded">✏️</button>
@@ -501,7 +505,10 @@ export default function Dashboard() {
                           <td className="py-3 px-4">{formatDate(b.end_date)}</td>
                           <td className="py-3 px-4">{formatCurrency(b.total_amount)}</td>
                           <td className="py-3 px-4">
-                            <span dangerouslySetInnerHTML={{ __html: getStatusBadge(b.status, 'booking') }} />
+                            {(() => {
+                              const badge = getStatusBadge(b.status, 'booking')
+                              return <span className={`${badge.bg} ${badge.text} px-2 py-1 rounded-full text-xs`}>{badge.label}</span>
+                            })()}
                           </td>
                           <td className="py-3 px-4">
                             <button onClick={() => openEditModal('booking', b)} className="text-blue-600 hover:bg-blue-50 p-2 rounded">✏️</button>
@@ -551,7 +558,10 @@ export default function Dashboard() {
                           <td className="py-3 px-4">{customer?.full_name || '-'}</td>
                           <td className="py-3 px-4">{formatCurrency(c.total_amount)}</td>
                           <td className="py-3 px-4">
-                            <span dangerouslySetInnerHTML={{ __html: getStatusBadge(c.status, 'contract') }} />
+                            {(() => {
+                              const badge = getStatusBadge(c.status, 'contract')
+                              return <span className={`${badge.bg} ${badge.text} px-2 py-1 rounded-full text-xs`}>{badge.label}</span>
+                            })()}
                           </td>
                           <td className="py-3 px-4">
                             <button onClick={() => openEditModal('contract', c)} className="text-blue-600 hover:bg-blue-50 p-2 rounded">✏️</button>
@@ -603,7 +613,10 @@ export default function Dashboard() {
                           <td className="py-3 px-4">{formatCurrency(inv.total_amount)}</td>
                           <td className="py-3 px-4">{formatCurrency(inv.amount_paid)}</td>
                           <td className="py-3 px-4">
-                            <span dangerouslySetInnerHTML={{ __html: getStatusBadge(inv.status, 'invoice') }} />
+                            {(() => {
+                              const badge = getStatusBadge(inv.status, 'invoice')
+                              return <span className={`${badge.bg} ${badge.text} px-2 py-1 rounded-full text-xs`}>{badge.label}</span>
+                            })()}
                           </td>
                           <td className="py-3 px-4">
                             <button onClick={() => openEditModal('invoice', inv)} className="text-blue-600 hover:bg-blue-50 p-2 rounded">✏️</button>
