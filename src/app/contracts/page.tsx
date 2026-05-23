@@ -6,9 +6,76 @@ import Link from 'next/link'
 const SUPABASE_URL = 'https://dyesocyzpmyzxasmgxat.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5ZXNvY3l6cG15enhhc21neGF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MTE2ODgsImV4cCI6MjA5NDk4NzY4OH0.dYai4mJSAmuJL8It96eNVUxAGv25z8oQu0a2l-7Pnm8'
 
+interface Contract {
+  id?: string
+  booking_id?: string
+  customer_id?: string
+  vehicle_id?: string
+  contract_number?: string
+  start_date: string
+  end_date: string
+  total_amount?: number
+  deposit_amount?: number
+  status: string
+  terms?: string
+  notes?: string
+  created_at?: string
+  customer_name?: string
+  vehicle_name?: string
+  plate_number?: string
+}
+
+interface Customer {
+  id: string
+  full_name: string
+}
+
+interface Vehicle {
+  id: string
+  name: string
+  plate_number: string
+}
+
+interface Booking {
+  id: string
+}
+
+interface Toast {
+  message: string
+  type: 'success' | 'error' | 'info'
+}
+
 export default function ContractsPage() {
   const [isLoading, setIsLoading] = useState(true)
-  const [contracts, setContracts] = useState<any[]>([])
+  const [contracts, setContracts] = useState<Contract[]>([])
+  const [filteredContracts, setFilteredContracts] = useState<Contract[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [toast, setToast] = useState<Toast | null>(null)
+
+  const [formData, setFormData] = useState<Contract>({
+    booking_id: '',
+    customer_id: '',
+    vehicle_id: '',
+    contract_number: '',
+    start_date: '',
+    end_date: '',
+    total_amount: 0,
+    deposit_amount: 0,
+    status: 'draft',
+    terms: '',
+    notes: ''
+  })
+
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const token = localStorage.getItem('sb_access_token')
@@ -16,23 +83,262 @@ export default function ContractsPage() {
       window.location.href = '/login-test'
       return
     }
-    fetchContracts(token)
+    fetchData(token)
   }, [])
 
-  async function fetchContracts(token: string) {
+  useEffect(() => {
+    const filtered = contracts.filter(c => {
+      const matchesSearch = searchQuery === '' ||
+        c.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.contract_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.plate_number?.toLowerCase().includes(searchQuery.toLowerCase())
+
+      const matchesStatus = statusFilter === 'all' || c.status === statusFilter
+
+      return matchesSearch && matchesStatus
+    })
+    setFilteredContracts(filtered)
+  }, [contracts, searchQuery, statusFilter])
+
+  function showToast(message: string, type: Toast['type']) {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  async function fetchData(token: string) {
     try {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/contracts?select=*&order=created_at.desc&limit=100`, {
+      // Fetch contracts
+      const contractsRes = await fetch(`${SUPABASE_URL}/rest/v1/contracts?select=*&order=created_at.desc&limit=100`, {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${token}`
         }
       })
-      const data = await response.json()
-      setContracts(Array.isArray(data) ? data : [])
+      const contractsData = await contractsRes.json()
+      const contractsList = Array.isArray(contractsData) ? contractsData : []
+
+      // Fetch customers
+      const customersRes = await fetch(`${SUPABASE_URL}/rest/v1/customers?select=id,full_name&order=full_name.asc&limit=100`, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const customersData = await customersRes.json()
+      setCustomers(Array.isArray(customersData) ? customersData : [])
+
+      // Fetch vehicles
+      const vehiclesRes = await fetch(`${SUPABASE_URL}/rest/v1/vehicles?select=id,name,plate_number&order=name.asc&limit=100`, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const vehiclesData = await vehiclesRes.json()
+      setVehicles(Array.isArray(vehiclesData) ? vehiclesData : [])
+
+      // Fetch bookings
+      const bookingsRes = await fetch(`${SUPABASE_URL}/rest/v1/bookings?select=id&order=created_at.desc&limit=100`, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const bookingsData = await bookingsRes.json()
+      setBookings(Array.isArray(bookingsData) ? bookingsData : [])
+
+      // Map customer and vehicle names to contracts
+      const contractsWithDetails = contractsList.map((c: Contract) => {
+        const customer = customers.find((cu: Customer) => cu.id === c.customer_id)
+        const vehicle = vehicles.find((v: Vehicle) => v.id === c.vehicle_id)
+        return {
+          ...c,
+          customer_name: customer?.full_name || '-',
+          vehicle_name: vehicle?.name || '-',
+          plate_number: vehicle?.plate_number || '-'
+        }
+      })
+
+      setContracts(contractsWithDetails)
+      setFilteredContracts(contractsWithDetails)
     } catch (err) {
-      console.error('Error:', err)
+      console.error('Error fetching data:', err)
+      showToast('فشل في تحميل البيانات', 'error')
     }
     setIsLoading(false)
+  }
+
+  function validateForm(): boolean {
+    const errors: Record<string, string> = {}
+
+    if (!formData.contract_number?.trim()) {
+      errors.contract_number = 'رقم العقد مطلوب'
+    }
+
+    if (!formData.customer_id) {
+      errors.customer_id = 'اختر العميل'
+    }
+
+    if (!formData.vehicle_id) {
+      errors.vehicle_id = 'اختر السيارة'
+    }
+
+    if (!formData.start_date) {
+      errors.start_date = 'تاريخ البداية مطلوب'
+    }
+
+    if (!formData.end_date) {
+      errors.end_date = 'تاريخ النهاية مطلوب'
+    } else if (formData.start_date && formData.end_date < formData.start_date) {
+      errors.end_date = 'تاريخ النهاية يجب أن يكون بعد البداية'
+    }
+
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!validateForm()) return
+
+    setIsSubmitting(true)
+    const token = localStorage.getItem('sb_access_token')
+    if (!token) {
+      showToast('انتهت صلاحية الجلسة', 'error')
+      window.location.href = '/login-test'
+      return
+    }
+
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/contracts`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(formData)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'فشل في إضافة العقد')
+      }
+
+      showToast('تم إضافة العقد بنجاح', 'success')
+      setShowAddModal(false)
+      resetForm()
+      fetchData(token)
+    } catch (err: any) {
+      showToast(err.message || 'فشل في إضافة العقد', 'error')
+    }
+    setIsSubmitting(false)
+  }
+
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!validateForm() || !selectedContract?.id) return
+
+    setIsSubmitting(true)
+    const token = localStorage.getItem('sb_access_token')
+    if (!token) {
+      showToast('انتهت صلاحية الجلسة', 'error')
+      window.location.href = '/login-test'
+      return
+    }
+
+    try {
+      const { created_at, customer_name, vehicle_name, plate_number, ...updateData } = formData
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/contracts?id=eq.${selectedContract.id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(updateData)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'فشل في تحديث العقد')
+      }
+
+      showToast('تم تحديث العقد بنجاح', 'success')
+      setShowEditModal(false)
+      setSelectedContract(null)
+      fetchData(token)
+    } catch (err: any) {
+      showToast(err.message || 'فشل في تحديث العقد', 'error')
+    }
+    setIsSubmitting(false)
+  }
+
+  async function handleDelete() {
+    if (!selectedContract?.id) return
+
+    setIsSubmitting(true)
+    const token = localStorage.getItem('sb_access_token')
+    if (!token) {
+      showToast('انتهت صلاحية الجلسة', 'error')
+      window.location.href = '/login-test'
+      return
+    }
+
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/contracts?id=eq.${selectedContract.id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'فشل في حذف العقد')
+      }
+
+      showToast('تم حذف العقد بنجاح', 'success')
+      setShowDeleteModal(false)
+      setSelectedContract(null)
+      fetchData(token)
+    } catch (err: any) {
+      showToast(err.message || 'فشل في حذف العقد', 'error')
+    }
+    setIsSubmitting(false)
+  }
+
+  function resetForm() {
+    setFormData({
+      booking_id: '',
+      customer_id: '',
+      vehicle_id: '',
+      contract_number: '',
+      start_date: '',
+      end_date: '',
+      total_amount: 0,
+      deposit_amount: 0,
+      status: 'draft',
+      terms: '',
+      notes: ''
+    })
+    setFormErrors({})
+  }
+
+  function openEditModal(contract: Contract) {
+    setSelectedContract(contract)
+    setFormData({ ...contract })
+    setFormErrors({})
+    setShowEditModal(true)
+  }
+
+  function openDeleteModal(contract: Contract) {
+    setSelectedContract(contract)
+    setShowDeleteModal(true)
   }
 
   function handleLogout() {
@@ -40,6 +346,39 @@ export default function ContractsPage() {
     localStorage.removeItem('sb_refresh_token')
     localStorage.removeItem('sb_user_id')
     window.location.href = '/login-test'
+  }
+
+  function getStatusColor(status: string) {
+    switch (status) {
+      case 'active': return 'bg-green-100 text-green-700 border-green-200'
+      case 'expired': return 'bg-red-100 text-red-700 border-red-200'
+      case 'draft': return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+      case 'terminated': return 'bg-gray-100 text-gray-700 border-gray-200'
+      default: return 'bg-slate-100 text-slate-700 border-slate-200'
+    }
+  }
+
+  function getStatusLabel(status: string) {
+    switch (status) {
+      case 'active': return 'نشط'
+      case 'expired': return 'منتهي'
+      case 'draft': return 'مسودة'
+      case 'terminated': return 'ملغي'
+      default: return status
+    }
+  }
+
+  function formatDate(dateStr: string) {
+    if (!dateStr) return '-'
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('ar-SA')
+  }
+
+  function formatCurrency(amount: number) {
+    return new Intl.NumberFormat('ar-SA', {
+      style: 'currency',
+      currency: 'SAR'
+    }).format(amount)
   }
 
   if (isLoading) {
@@ -50,72 +389,571 @@ export default function ContractsPage() {
     )
   }
 
+  const stats = {
+    total: contracts.length,
+    active: contracts.filter(c => c.status === 'active').length,
+    draft: contracts.filter(c => c.status === 'draft').length,
+    expired: contracts.filter(c => c.status === 'expired').length,
+    totalValue: contracts.reduce((sum, c) => sum + (c.total_amount || 0), 0)
+  }
+
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">العقود</h1>
-          <p className="text-slate-500">إدارة العقود</p>
+    <div className="min-h-screen bg-slate-50">
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg animate-pulse ${
+          toast.type === 'success' ? 'bg-green-500 text-white' :
+          toast.type === 'error' ? 'bg-red-500 text-white' :
+          'bg-blue-500 text-white'
+        }`}>
+          {toast.message}
         </div>
-        <button onClick={handleLogout} className="bg-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-200">
-          تسجيل الخروج
-        </button>
-      </div>
+      )}
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm">
-          <div className="text-3xl mb-2">📄</div>
-          <div className="text-2xl font-bold">{contracts.length}</div>
-          <div className="text-slate-500">إجمالي العقود</div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        {[
-          { href: '/company', icon: '🏠', label: 'لوحة التحكم', bg: 'bg-blue-500' },
-          { href: '/fleet', icon: '🚗', label: 'الأسطول', bg: 'bg-green-500' },
-          { href: '/customers', icon: '👥', label: 'العملاء', bg: 'bg-purple-500' },
-          { href: '/invoices', icon: '💰', label: 'الفواتير', bg: 'bg-pink-500' },
-        ].map((item) => (
-          <Link key={item.href} href={item.href} className={`${item.bg} text-white p-4 rounded-xl flex items-center gap-3 hover:opacity-90`}>
-            <span className="text-2xl">{item.icon}</span>
-            <span className="font-semibold">{item.label}</span>
-          </Link>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">قائمة العقود</h2>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">+ إضافة عقد</button>
-        </div>
-
-        {contracts.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">📄</div>
-            <p className="text-slate-500">لا توجد عقود بعد</p>
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">العقود</h1>
+            <p className="text-slate-500">إجمالي: {contracts.length} عقد</p>
           </div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b">
-                <th className="text-right py-3 px-4">رقم العقد</th>
-                <th className="text-right py-3 px-4">الحالة</th>
-                <th className="text-right py-3 px-4">تاريخ البدء</th>
-              </tr>
-            </thead>
-            <tbody>
-              {contracts.map((c) => (
-                <tr key={c.id} className="border-b hover:bg-slate-50">
-                  <td className="py-3 px-4 font-mono">#{c.id.slice(0, 8)}</td>
-                  <td className="py-3 px-4">{c.status || '-'}</td>
-                  <td className="py-3 px-4">{c.start_date || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+          <button onClick={handleLogout} className="bg-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-200 transition-colors">
+            تسجيل الخروج
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        {/* Quick Navigation */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          {[
+            { href: '/company', icon: '🏠', label: 'لوحة التحكم', bg: 'bg-blue-500' },
+            { href: '/fleet', icon: '🚗', label: 'الأسطول', bg: 'bg-green-500' },
+            { href: '/customers', icon: '👥', label: 'العملاء', bg: 'bg-purple-500' },
+            { href: '/invoices', icon: '💰', label: 'الفواتير', bg: 'bg-pink-500' },
+          ].map((item) => (
+            <Link key={item.href} href={item.href} className={`${item.bg} text-white p-4 rounded-xl flex items-center gap-3 hover:opacity-90 transition-opacity`}>
+              <span className="text-2xl">{item.icon}</span>
+              <span className="font-semibold">{item.label}</span>
+            </Link>
+          ))}
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-5 gap-4 mb-6">
+          <div className="bg-white p-6 rounded-xl shadow-sm">
+            <div className="text-3xl mb-2">📄</div>
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-slate-500">إجمالي العقود</div>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-sm">
+            <div className="text-3xl mb-2">✅</div>
+            <div className="text-2xl font-bold">{stats.active}</div>
+            <div className="text-slate-500">نشط</div>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-sm">
+            <div className="text-3xl mb-2">📝</div>
+            <div className="text-2xl font-bold">{stats.draft}</div>
+            <div className="text-slate-500">مسودة</div>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-sm">
+            <div className="text-3xl mb-2">⏰</div>
+            <div className="text-2xl font-bold">{stats.expired}</div>
+            <div className="text-slate-500">منتهي</div>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-sm">
+            <div className="text-3xl mb-2">💰</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.totalValue)}</div>
+            <div className="text-slate-500">إجمالي القيمة</div>
+          </div>
+        </div>
+
+        {/* Main Table Card */}
+        <div className="bg-white rounded-xl shadow-sm">
+          <div className="p-6 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <h2 className="text-lg font-semibold text-slate-900">قائمة العقود</h2>
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <input
+                type="text"
+                placeholder="🔍 بحث برقم العقد أو العميل..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-64"
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">جميع الحالات</option>
+                <option value="draft">مسودة</option>
+                <option value="active">نشط</option>
+                <option value="expired">منتهي</option>
+                <option value="terminated">ملغي</option>
+              </select>
+              <button
+                onClick={() => {
+                  resetForm()
+                  setShowAddModal(true)
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+              >
+                + إضافة عقد
+              </button>
+            </div>
+          </div>
+
+          {filteredContracts.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">📄</div>
+              <p className="text-slate-500">
+                {searchQuery || statusFilter !== 'all' ? 'لا توجد نتائج للبحث' : 'لا توجد عقود بعد'}
+              </p>
+              {!searchQuery && statusFilter === 'all' && (
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="mt-4 text-blue-600 hover:underline"
+                >
+                  إضافة أول عقد
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600">رقم العقد</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600">العميل</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600">السيارة</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600">تاريخ البداية</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600">تاريخ النهاية</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600">المبلغ الإجمالي</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600">الحالة</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredContracts.map((c, index) => (
+                    <tr key={c.id || index} className="border-b hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4 font-mono text-sm">{c.contract_number || `#${c.id?.slice(0, 8)}`}</td>
+                      <td className="py-3 px-4 font-medium">{c.customer_name}</td>
+                      <td className="py-3 px-4">
+                        <div>{c.vehicle_name}</div>
+                        <div className="text-xs text-slate-500">{c.plate_number}</div>
+                      </td>
+                      <td className="py-3 px-4">{formatDate(c.start_date)}</td>
+                      <td className="py-3 px-4">{formatDate(c.end_date)}</td>
+                      <td className="py-3 px-4 font-medium">{c.total_amount ? formatCurrency(c.total_amount) : '-'}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded-full text-sm border ${getStatusColor(c.status)}`}>
+                          {getStatusLabel(c.status)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => openEditModal(c)}
+                            className="text-blue-600 hover:bg-blue-50 p-2 rounded transition-colors"
+                            title="تعديل"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => openDeleteModal(c)}
+                            className="text-red-600 hover:bg-red-50 p-2 rounded transition-colors"
+                            title="حذف"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h3 className="text-xl font-semibold">إضافة عقد جديد</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-500 hover:text-slate-700">✕</button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">رقم العقد *</label>
+                  <input
+                    type="text"
+                    value={formData.contract_number}
+                    onChange={(e) => setFormData({ ...formData, contract_number: e.target.value })}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.contract_number ? 'border-red-500' : ''}`}
+                    placeholder="مثال: CTR-2024-001"
+                  />
+                  {formErrors.contract_number && <p className="text-red-500 text-sm mt-1">{formErrors.contract_number}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">رقم الحجز</label>
+                  <select
+                    value={formData.booking_id}
+                    onChange={(e) => setFormData({ ...formData, booking_id: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">اختر الحجز (اختياري)</option>
+                    {bookings.map(b => (
+                      <option key={b.id} value={b.id}>#{b.id.slice(0, 8)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">العميل *</label>
+                  <select
+                    value={formData.customer_id}
+                    onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.customer_id ? 'border-red-500' : ''}`}
+                  >
+                    <option value="">اختر العميل</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>{c.full_name}</option>
+                    ))}
+                  </select>
+                  {formErrors.customer_id && <p className="text-red-500 text-sm mt-1">{formErrors.customer_id}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">السيارة *</label>
+                  <select
+                    value={formData.vehicle_id}
+                    onChange={(e) => setFormData({ ...formData, vehicle_id: e.target.value })}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.vehicle_id ? 'border-red-500' : ''}`}
+                  >
+                    <option value="">اختر السيارة</option>
+                    {vehicles.map(v => (
+                      <option key={v.id} value={v.id}>{v.name} - {v.plate_number}</option>
+                    ))}
+                  </select>
+                  {formErrors.vehicle_id && <p className="text-red-500 text-sm mt-1">{formErrors.vehicle_id}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">تاريخ البداية *</label>
+                  <input
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.start_date ? 'border-red-500' : ''}`}
+                  />
+                  {formErrors.start_date && <p className="text-red-500 text-sm mt-1">{formErrors.start_date}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">تاريخ النهاية *</label>
+                  <input
+                    type="date"
+                    value={formData.end_date}
+                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.end_date ? 'border-red-500' : ''}`}
+                  />
+                  {formErrors.end_date && <p className="text-red-500 text-sm mt-1">{formErrors.end_date}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">المبلغ الإجمالي</label>
+                  <input
+                    type="number"
+                    value={formData.total_amount || ''}
+                    onChange={(e) => setFormData({ ...formData, total_amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">مبلغ التأمين</label>
+                  <input
+                    type="number"
+                    value={formData.deposit_amount || ''}
+                    onChange={(e) => setFormData({ ...formData, deposit_amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">الحالة</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="draft">مسودة</option>
+                    <option value="active">نشط</option>
+                    <option value="expired">منتهي</option>
+                    <option value="terminated">ملغي</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">الشروط والأحكام</label>
+                  <textarea
+                    value={formData.terms}
+                    onChange={(e) => setFormData({ ...formData, terms: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="شروط وأحكام العقد..."
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">ملاحظات</label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="ملاحظات إضافية..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isSubmitting ? 'جاري الحفظ...' : 'حفظ العقد'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-6 py-2 border rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && selectedContract && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h3 className="text-xl font-semibold">تعديل العقد</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-500 hover:text-slate-700">✕</button>
+            </div>
+            <form onSubmit={handleUpdate} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">رقم العقد *</label>
+                  <input
+                    type="text"
+                    value={formData.contract_number}
+                    onChange={(e) => setFormData({ ...formData, contract_number: e.target.value })}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.contract_number ? 'border-red-500' : ''}`}
+                    placeholder="مثال: CTR-2024-001"
+                  />
+                  {formErrors.contract_number && <p className="text-red-500 text-sm mt-1">{formErrors.contract_number}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">رقم الحجز</label>
+                  <select
+                    value={formData.booking_id}
+                    onChange={(e) => setFormData({ ...formData, booking_id: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">اختر الحجز (اختياري)</option>
+                    {bookings.map(b => (
+                      <option key={b.id} value={b.id}>#{b.id.slice(0, 8)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">العميل *</label>
+                  <select
+                    value={formData.customer_id}
+                    onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.customer_id ? 'border-red-500' : ''}`}
+                  >
+                    <option value="">اختر العميل</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>{c.full_name}</option>
+                    ))}
+                  </select>
+                  {formErrors.customer_id && <p className="text-red-500 text-sm mt-1">{formErrors.customer_id}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">السيارة *</label>
+                  <select
+                    value={formData.vehicle_id}
+                    onChange={(e) => setFormData({ ...formData, vehicle_id: e.target.value })}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.vehicle_id ? 'border-red-500' : ''}`}
+                  >
+                    <option value="">اختر السيارة</option>
+                    {vehicles.map(v => (
+                      <option key={v.id} value={v.id}>{v.name} - {v.plate_number}</option>
+                    ))}
+                  </select>
+                  {formErrors.vehicle_id && <p className="text-red-500 text-sm mt-1">{formErrors.vehicle_id}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">تاريخ البداية *</label>
+                  <input
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.start_date ? 'border-red-500' : ''}`}
+                  />
+                  {formErrors.start_date && <p className="text-red-500 text-sm mt-1">{formErrors.start_date}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">تاريخ النهاية *</label>
+                  <input
+                    type="date"
+                    value={formData.end_date}
+                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.end_date ? 'border-red-500' : ''}`}
+                  />
+                  {formErrors.end_date && <p className="text-red-500 text-sm mt-1">{formErrors.end_date}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">المبلغ الإجمالي</label>
+                  <input
+                    type="number"
+                    value={formData.total_amount || ''}
+                    onChange={(e) => setFormData({ ...formData, total_amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">مبلغ التأمين</label>
+                  <input
+                    type="number"
+                    value={formData.deposit_amount || ''}
+                    onChange={(e) => setFormData({ ...formData, deposit_amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">الحالة</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="draft">مسودة</option>
+                    <option value="active">نشط</option>
+                    <option value="expired">منتهي</option>
+                    <option value="terminated">ملغي</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">الشروط والأحكام</label>
+                  <textarea
+                    value={formData.terms}
+                    onChange={(e) => setFormData({ ...formData, terms: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="شروط وأحكام العقد..."
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">ملاحظات</label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="ملاحظات إضافية..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isSubmitting ? 'جاري التحديث...' : 'تحديث العقد'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-6 py-2 border rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && selectedContract && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="p-6 text-center">
+              <div className="text-6xl mb-4">⚠️</div>
+              <h3 className="text-xl font-semibold mb-2">تأكيد الحذف</h3>
+              <p className="text-slate-600 mb-4">
+                هل أنت متأكد من حذف العقد <strong>{selectedContract.contract_number || `#${selectedContract.id?.slice(0, 8)}`}</strong>؟
+              </p>
+              <p className="text-red-500 text-sm mb-4">لا يمكن التراجع عن هذا الإجراء</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDelete}
+                  disabled={isSubmitting}
+                  className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isSubmitting ? 'جاري الحذف...' : 'نعم، احذف'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false)
+                    setSelectedContract(null)
+                  }}
+                  className="flex-1 px-6 py-2 border rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
