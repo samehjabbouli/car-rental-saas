@@ -18,7 +18,7 @@ interface Booking {
   created_at?: string
   customer_name?: string
   vehicle_name?: string
-  plate_number?: string
+  license_plate?: string
 }
 
 interface Customer {
@@ -29,7 +29,7 @@ interface Customer {
 interface Vehicle {
   id: string
   name: string
-  plate_number: string
+  license_plate: string
 }
 
 interface Toast {
@@ -78,7 +78,7 @@ export default function BookingsPage() {
       const matchesSearch = searchQuery === '' || 
         b.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         b.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        b.plate_number?.toLowerCase().includes(searchQuery.toLowerCase())
+        b.license_plate?.toLowerCase().includes(searchQuery.toLowerCase())
 
       const matchesStatus = statusFilter === 'all' || b.status === statusFilter
 
@@ -115,7 +115,7 @@ export default function BookingsPage() {
       setCustomers(Array.isArray(customersData) ? customersData : [])
 
       // Fetch vehicles
-      const vehiclesRes = await fetch(`${SUPABASE_URL}/rest/v1/vehicles?select=id,name,plate_number&order=name.asc&limit=100`, {
+      const vehiclesRes = await fetch(`${SUPABASE_URL}/rest/v1/vehicles?select=id,name,license_plate&order=name.asc&limit=100`, {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${token}`
@@ -132,7 +132,7 @@ export default function BookingsPage() {
           ...b,
           customer_name: customer?.full_name || '-',
           vehicle_name: vehicle?.name || '-',
-          plate_number: vehicle?.plate_number || '-'
+          license_plate: vehicle?.license_plate || '-'
         }
       })
 
@@ -222,7 +222,7 @@ export default function BookingsPage() {
     }
 
     try {
-      const { created_at, customer_name, vehicle_name, plate_number, ...updateData } = formData
+      const { created_at, customer_name, vehicle_name, license_plate, ...updateData } = formData
       const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?id=eq.${selectedBooking.id}`, {
         method: 'PATCH',
         headers: {
@@ -508,7 +508,7 @@ export default function BookingsPage() {
                       <td className="py-3 px-4 font-medium">{b.customer_name}</td>
                       <td className="py-3 px-4">
                         <div>{b.vehicle_name}</div>
-                        <div className="text-xs text-slate-500">{b.plate_number}</div>
+                        <div>{b.license_plate}</div>
                       </td>
                       <td className="py-3 px-4">{formatDate(b.start_date)}</td>
                       <td className="py-3 px-4">{formatDate(b.end_date)}</td>
@@ -579,7 +579,7 @@ export default function BookingsPage() {
                   >
                     <option value="">اختر السيارة</option>
                     {vehicles.map(v => (
-                      <option key={v.id} value={v.id}>{v.name} - {v.plate_number}</option>
+                      <option key={v.id} value={v.id}>{v.name} - {v.license_plate}</option>
                     ))}
                   </select>
                   {formErrors.vehicle_id && <p className="text-red-500 text-sm mt-1">{formErrors.vehicle_id}</p>}
@@ -701,7 +701,7 @@ export default function BookingsPage() {
                   >
                     <option value="">اختر السيارة</option>
                     {vehicles.map(v => (
-                      <option key={v.id} value={v.id}>{v.name} - {v.plate_number}</option>
+                      <option key={v.id} value={v.id}>{v.name} - {v.license_plate}</option>
                     ))}
                   </select>
                   {formErrors.vehicle_id && <p className="text-red-500 text-sm mt-1">{formErrors.vehicle_id}</p>}

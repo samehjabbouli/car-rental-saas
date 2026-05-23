@@ -9,10 +9,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 interface Vehicle {
   id: string
   name: string
-  plate_number: string
-  brand: string
+  license_plate: string
+  make: string
   model: string
-  year: string
+  year: number
   color: string
   daily_rate: number
   status: string
@@ -21,8 +21,8 @@ interface Vehicle {
 
 interface VehicleFormData {
   name: string
-  plate_number: string
-  brand: string
+  license_plate: string
+  make: string
   model: string
   year: string
   color: string
@@ -39,8 +39,8 @@ const statusOptions = [
 
 const initialFormData: VehicleFormData = {
   name: '',
-  plate_number: '',
-  brand: '',
+  license_plate: '',
+  make: '',
   model: '',
   year: new Date().getFullYear().toString(),
   color: '',
@@ -91,10 +91,14 @@ export default function FleetPage() {
       if (response.ok) {
         const data = await response.json()
         setVehicles(Array.isArray(data) ? data : [])
+      } else {
+        const error = await response.json()
+        console.error('Fetch error:', error)
+        showToast('خطأ في تحميل البيانات', 'error')
       }
     } catch (err) {
       console.error('Error:', err)
-      showToast('خطأ في تحميل البيانات', 'error')
+      showToast('خطأ في الاتصال بالخادم', 'error')
     }
     setIsLoading(false)
   }
@@ -102,8 +106,8 @@ export default function FleetPage() {
   function validateForm(data: VehicleFormData): boolean {
     const errors: Partial<VehicleFormData> = {}
     if (!data.name.trim()) errors.name = 'اسم السيارة مطلوب'
-    if (!data.plate_number.trim()) errors.plate_number = 'رقم اللوحة مطلوب'
-    if (!data.brand.trim()) errors.brand = 'الماركة مطلوبة'
+    if (!data.license_plate.trim()) errors.license_plate = 'رقم اللوحة مطلوب'
+    if (!data.make.trim()) errors.make = 'الماركة مطلوبة'
     if (!data.model.trim()) errors.model = 'الموديل مطلوب'
     if (!data.year.trim()) errors.year = 'السنة مطلوبة'
     else if (isNaN(parseInt(data.year)) || parseInt(data.year) < 1900 || parseInt(data.year) > 2030) {
@@ -133,10 +137,10 @@ export default function FleetPage() {
         },
         body: JSON.stringify({
           name: formData.name,
-          plate_number: formData.plate_number,
-          brand: formData.brand,
+          license_plate: formData.license_plate,
+          make: formData.make,
           model: formData.model,
-          year: formData.year,
+          year: parseInt(formData.year),
           color: formData.color,
           daily_rate: parseFloat(formData.daily_rate),
           status: formData.status,
@@ -175,10 +179,10 @@ export default function FleetPage() {
         },
         body: JSON.stringify({
           name: formData.name,
-          plate_number: formData.plate_number,
-          brand: formData.brand,
+          license_plate: formData.license_plate,
+          make: formData.make,
           model: formData.model,
-          year: formData.year,
+          year: parseInt(formData.year),
           color: formData.color,
           daily_rate: parseFloat(formData.daily_rate),
           status: formData.status,
@@ -234,10 +238,10 @@ export default function FleetPage() {
     setSelectedVehicle(vehicle)
     setFormData({
       name: vehicle.name,
-      plate_number: vehicle.plate_number || '',
-      brand: vehicle.brand || '',
+      license_plate: vehicle.license_plate || '',
+      make: vehicle.make || '',
       model: vehicle.model || '',
-      year: vehicle.year || '',
+      year: vehicle.year?.toString() || '',
       color: vehicle.color || '',
       daily_rate: vehicle.daily_rate?.toString() || '',
       status: vehicle.status || 'available',
@@ -261,8 +265,8 @@ export default function FleetPage() {
   const filteredVehicles = vehicles.filter(v => {
     const matchesSearch = !searchQuery || 
       v.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.plate_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.brand?.toLowerCase().includes(searchQuery.toLowerCase())
+      v.license_plate?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.make?.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = !statusFilter || v.status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -363,7 +367,7 @@ export default function FleetPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+/>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -416,8 +420,8 @@ export default function FleetPage() {
                           <div className="font-semibold">{vehicle.name}</div>
                         </div>
                       </td>
-                      <td className="py-3 px-4 font-mono">{vehicle.plate_number || '-'}</td>
-                      <td className="py-3 px-4">{vehicle.brand || '-'}</td>
+                      <td className="py-3 px-4 font-mono">{vehicle.license_plate || '-'}</td>
+                      <td className="py-3 px-4">{vehicle.make || '-'}</td>
                       <td className="py-3 px-4">{vehicle.model || '-'}</td>
                       <td className="py-3 px-4">{vehicle.year || '-'}</td>
                       <td className="py-3 px-4">
@@ -465,21 +469,21 @@ export default function FleetPage() {
                   <label className="block text-sm font-medium mb-1">رقم اللوحة *</label>
                   <input
                     type="text"
-                    value={formData.plate_number}
-                    onChange={(e) => setFormData({...formData, plate_number: e.target.value})}
-                    className={`w-full px-3 py-2 border rounded-lg ${formErrors.plate_number ? 'border-red-500' : 'border-slate-300'}`}
+                    value={formData.license_plate}
+                    onChange={(e) => setFormData({...formData, license_plate: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg ${formErrors.license_plate ? 'border-red-500' : 'border-slate-300'}`}
                   />
-                  {formErrors.plate_number && <span className="text-red-500 text-xs">{formErrors.plate_number}</span>}
+                  {formErrors.license_plate && <span className="text-red-500 text-xs">{formErrors.license_plate}</span>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">الماركة *</label>
                   <input
                     type="text"
-                    value={formData.brand}
-                    onChange={(e) => setFormData({...formData, brand: e.target.value})}
-                    className={`w-full px-3 py-2 border rounded-lg ${formErrors.brand ? 'border-red-500' : 'border-slate-300'}`}
+                    value={formData.make}
+                    onChange={(e) => setFormData({...formData, make: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg ${formErrors.make ? 'border-red-500' : 'border-slate-300'}`}
                   />
-                  {formErrors.brand && <span className="text-red-500 text-xs">{formErrors.brand}</span>}
+                  {formErrors.make && <span className="text-red-500 text-xs">{formErrors.make}</span>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">الموديل *</label>
@@ -568,21 +572,21 @@ export default function FleetPage() {
                   <label className="block text-sm font-medium mb-1">رقم اللوحة *</label>
                   <input
                     type="text"
-                    value={formData.plate_number}
-                    onChange={(e) => setFormData({...formData, plate_number: e.target.value})}
-                    className={`w-full px-3 py-2 border rounded-lg ${formErrors.plate_number ? 'border-red-500' : 'border-slate-300'}`}
+                    value={formData.license_plate}
+                    onChange={(e) => setFormData({...formData, license_plate: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg ${formErrors.license_plate ? 'border-red-500' : 'border-slate-300'}`}
                   />
-                  {formErrors.plate_number && <span className="text-red-500 text-xs">{formErrors.plate_number}</span>}
+                  {formErrors.license_plate && <span className="text-red-500 text-xs">{formErrors.license_plate}</span>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">الماركة *</label>
                   <input
                     type="text"
-                    value={formData.brand}
-                    onChange={(e) => setFormData({...formData, brand: e.target.value})}
-                    className={`w-full px-3 py-2 border rounded-lg ${formErrors.brand ? 'border-red-500' : 'border-slate-300'}`}
+                    value={formData.make}
+                    onChange={(e) => setFormData({...formData, make: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg ${formErrors.make ? 'border-red-500' : 'border-slate-300'}`}
                   />
-                  {formErrors.brand && <span className="text-red-500 text-xs">{formErrors.brand}</span>}
+                  {formErrors.make && <span className="text-red-500 text-xs">{formErrors.make}</span>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">الموديل *</label>
@@ -650,7 +654,7 @@ export default function FleetPage() {
       {/* Delete Modal */}
       {showDeleteModal && selectedVehicle && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+<div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <div className="text-center">
               <div className="text-6xl mb-4">⚠️</div>
               <h3 className="text-xl font-bold mb-2">حذف السيارة</h3>

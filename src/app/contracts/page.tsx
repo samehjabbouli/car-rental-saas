@@ -22,7 +22,7 @@ interface Contract {
   created_at?: string
   customer_name?: string
   vehicle_name?: string
-  plate_number?: string
+  license_plate?: string
 }
 
 interface Customer {
@@ -33,7 +33,7 @@ interface Customer {
 interface Vehicle {
   id: string
   name: string
-  plate_number: string
+  license_plate: string
 }
 
 interface Booking {
@@ -92,7 +92,7 @@ export default function ContractsPage() {
         c.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.contract_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.plate_number?.toLowerCase().includes(searchQuery.toLowerCase())
+        c.license_plate?.toLowerCase().includes(searchQuery.toLowerCase())
 
       const matchesStatus = statusFilter === 'all' || c.status === statusFilter
 
@@ -129,7 +129,7 @@ export default function ContractsPage() {
       setCustomers(Array.isArray(customersData) ? customersData : [])
 
       // Fetch vehicles
-      const vehiclesRes = await fetch(`${SUPABASE_URL}/rest/v1/vehicles?select=id,name,plate_number&order=name.asc&limit=100`, {
+      const vehiclesRes = await fetch(`${SUPABASE_URL}/rest/v1/vehicles?select=id,name,license_plate&order=name.asc&limit=100`, {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${token}`
@@ -156,7 +156,7 @@ export default function ContractsPage() {
           ...c,
           customer_name: customer?.full_name || '-',
           vehicle_name: vehicle?.name || '-',
-          plate_number: vehicle?.plate_number || '-'
+          license_plate: vehicle?.license_plate || '-'
         }
       })
 
@@ -250,7 +250,7 @@ export default function ContractsPage() {
     }
 
     try {
-      const { created_at, customer_name, vehicle_name, plate_number, ...updateData } = formData
+      const { created_at, customer_name, vehicle_name, license_plate, ...updateData } = formData
       const response = await fetch(`${SUPABASE_URL}/rest/v1/contracts?id=eq.${selectedContract.id}`, {
         method: 'PATCH',
         headers: {
@@ -540,7 +540,7 @@ export default function ContractsPage() {
                       <td className="py-3 px-4 font-medium">{c.customer_name}</td>
                       <td className="py-3 px-4">
                         <div>{c.vehicle_name}</div>
-                        <div className="text-xs text-slate-500">{c.plate_number}</div>
+                        <div>{c.license_plate}</div>
                       </td>
                       <td className="py-3 px-4">{formatDate(c.start_date)}</td>
                       <td className="py-3 px-4">{formatDate(c.end_date)}</td>
@@ -637,7 +637,7 @@ export default function ContractsPage() {
                   >
                     <option value="">اختر السيارة</option>
                     {vehicles.map(v => (
-                      <option key={v.id} value={v.id}>{v.name} - {v.plate_number}</option>
+                      <option key={v.id} value={v.id}>{v.name} - {v.license_plate}</option>
                     ))}
                   </select>
                   {formErrors.vehicle_id && <p className="text-red-500 text-sm mt-1">{formErrors.vehicle_id}</p>}
@@ -809,7 +809,7 @@ export default function ContractsPage() {
                   >
                     <option value="">اختر السيارة</option>
                     {vehicles.map(v => (
-                      <option key={v.id} value={v.id}>{v.name} - {v.plate_number}</option>
+                      <option key={v.id} value={v.id}>{v.name} - {v.license_plate}</option>
                     ))}
                   </select>
                   {formErrors.vehicle_id && <p className="text-red-500 text-sm mt-1">{formErrors.vehicle_id}</p>}
